@@ -1,0 +1,26 @@
+.next
+.vscode
+node_modules
+**.DS_Store
+bin/
+obj/
+db/
+database
+.env.local
+.idea/
+tsconfig.tsbuildinfo
+.vs/
+.react-email
+google_oauth2_client_secrets.env
+dist
+# Python development
+.python-version
+/test-results/
+/playwright-report/
+/blob-report/
+/playwright/.cache/
+
+
+.env
+1password-credentials.json
+hosts

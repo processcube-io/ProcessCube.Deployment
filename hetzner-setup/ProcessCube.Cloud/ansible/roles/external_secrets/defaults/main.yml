@@ -1,0 +1,11 @@
+---
+# External Secrets Operator version
+external_secrets_version: "1.1.0"
+
+# 1Password Connect settings
+onepassword_connect_namespace: "external-secrets"
+onepassword_connect_version: "2.0.5"
+
+# 1Password credentials (set via Terraform variables in inventory)
+# These values are automatically passed from Terraform to Ansible
+# Configure them in terraform.tfvars

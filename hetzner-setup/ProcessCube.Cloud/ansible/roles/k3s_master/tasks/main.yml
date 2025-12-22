@@ -1,0 +1,230 @@
+---
+- name: Install required packages
+  apt:
+    name:
+      - curl
+      - wget
+      - git
+      - ufw
+      - netcat
+      - jq
+    state: present
+    update_cache: yes
+
+- name: Disable swap
+  shell: |
+    swapoff -a
+    sed -i '/ swap / s/^/#/' /etc/fstab
+  changed_when: false
+
+- name: Configure firewall rules for specific ports from anywhere
+  ufw:
+    rule: allow
+    port: "{{ item }}"
+    proto: tcp
+  loop:
+    - "22"
+    - "80"
+    - "443"
+
+- name: Allow K3s API from internal network only
+  ufw:
+    rule: allow
+    port: "6443"
+    proto: tcp
+    from_ip: 10.0.0.0/16
+
+- name: Allow kubelet from internal network only
+  ufw:
+    rule: allow
+    port: "10250"
+    proto: tcp
+    from_ip: 10.0.0.0/16
+
+- name: Allow internal cluster network traffic
+  ufw:
+    rule: allow
+    from_ip: 10.0.0.0/16
+
+- name: Allow Pod network traffic
+  ufw:
+    rule: allow
+    from_ip: 10.42.0.0/16
+
+- name: Allow Service network traffic
+  ufw:
+    rule: allow
+    from_ip: 10.43.0.0/16
+
+- name: Enable firewall
+  ufw:
+    state: enabled
+    policy: deny
+
+- name: Check if K3s is already installed
+  stat:
+    path: /usr/local/bin/k3s
+  register: k3s_binary
+
+- name: Download K3s installation script
+  get_url:
+    url: https://get.k3s.io
+    dest: /tmp/k3s_install.sh
+    mode: '0700'
+  when: not k3s_binary.stat.exists
+
+- name: Get private IP from private network interface
+  shell: ip -4 addr show enp7s0 | grep -oP '(?<=inet\s)\d+(\.\d+){3}'
+  register: private_ip
+  changed_when: false
+
+- name: Get IP from tailscale network interface
+  shell: ip -4 addr show tailscale0 | grep -oP '(?<=inet\s)\d+(\.\d+){3}'
+  register: tailscale_ip
+  changed_when: false
+  failed_when: false
+  when: tailscale_auth_key is defined and tailscale_auth_key != ""
+
+- name: Install K3s master with Tailscale
+  shell: |
+    INSTALL_K3S_VERSION="{{ k3s_version }}" \
+    /tmp/k3s_install.sh server \
+      --cluster-init \
+      --node-ip {{ private_ip.stdout }} \
+      --advertise-address {{ private_ip.stdout }} \
+      --tls-san {{ private_ip.stdout }} \
+      --tls-san {{ tailscale_ip.stdout }} \
+      --node-name {{ cluster_name }}-master \
+      --flannel-backend=vxlan \
+      --flannel-iface=enp7s0 \
+      --disable traefik \
+      --disable servicelb \
+      --disable-cloud-controller \
+      --write-kubeconfig-mode 644 \
+      --kubelet-arg cloud-provider=external
+  args:
+    creates: /usr/local/bin/k3s
+  when:
+    - not k3s_binary.stat.exists
+    - tailscale_auth_key is defined and tailscale_auth_key != ""
+    - tailscale_ip.rc == 0
+
+- name: Install K3s master without Tailscale
+  shell: |
+    INSTALL_K3S_VERSION="{{ k3s_version }}" \
+    /tmp/k3s_install.sh server \
+      --cluster-init \
+      --node-ip {{ private_ip.stdout }} \
+      --advertise-address {{ private_ip.stdout }} \
+      --tls-san {{ private_ip.stdout }} \
+      --node-name {{ cluster_name }}-master \
+      --flannel-backend=vxlan \
+      --flannel-iface=enp7s0 \
+      --disable traefik \
+      --disable servicelb \
+      --disable-cloud-controller \
+      --write-kubeconfig-mode 644 \
+      --kubelet-arg cloud-provider=external
+  args:
+    creates: /usr/local/bin/k3s
+  when:
+    - not k3s_binary.stat.exists
+    - tailscale_auth_key is not defined or tailscale_auth_key == "" or tailscale_ip.rc != 0
+
+- name: Reload systemd daemon
+  systemd:
+    daemon_reload: yes
+
+- name: Enable and start K3s service
+  systemd:
+    name: k3s
+    enabled: yes
+    state: started
+  register: k3s_service_start
+  ignore_errors: true
+
+- name: Get K3s service status on failure
+  shell: systemctl status k3s.service --no-pager
+  register: k3s_status
+  when: k3s_service_start.failed | default(false)
+  changed_when: false
+  failed_when: false
+
+- name: Get K3s service logs on failure
+  shell: journalctl -xeu k3s.service --no-pager -n 100
+  register: k3s_logs
+  when: k3s_service_start.failed | default(false)
+  changed_when: false
+  failed_when: false
+
+- name: Display K3s service status
+  debug:
+    msg: "{{ k3s_status.stdout_lines }}"
+  when: k3s_service_start.failed | default(false)
+
+- name: Display K3s service logs
+  debug:
+    msg: "{{ k3s_logs.stdout_lines }}"
+  when: k3s_service_start.failed | default(false)
+
+- name: Fail if K3s service could not be started
+  fail:
+    msg: "K3s service failed to start. Check the logs above for details."
+  when: k3s_service_start.failed | default(false)
+
+- name: Wait for K3s to be ready
+  wait_for:
+    path: /etc/rancher/k3s/k3s.yaml
+    timeout: 300
+
+- name: Wait for node to be ready
+  shell: kubectl get nodes {{ cluster_name }}-master --no-headers | grep -q Ready
+  register: node_ready
+  until: node_ready.rc == 0
+  retries: 30
+  delay: 10
+  changed_when: false
+
+- name: Get K3s token
+  slurp:
+    src: /var/lib/rancher/k3s/server/node-token
+  register: k3s_token_file
+
+- name: Save K3s token
+  set_fact:
+    k3s_node_token: "{{ k3s_token_file.content | b64decode | trim }}"
+
+- name: Download Helm installation script
+  get_url:
+    url: https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3
+    dest: /tmp/get_helm.sh
+    mode: '0700'
+
+- name: Install Helm
+  shell: /tmp/get_helm.sh
+  args:
+    creates: /usr/local/bin/helm
+
+- name: Set proper ownership for kubeconfig
+  file:
+    path: /etc/rancher/k3s/k3s.yaml
+    owner: root
+    group: root
+    mode: '0644'
+
+- name: Create kubeconfig directory for root user
+  file:
+    path: /root/.kube
+    state: directory
+    mode: '0755'
+
+- name: Copy kubeconfig for root user
+  copy:
+    src: /etc/rancher/k3s/k3s.yaml
+    dest: /root/.kube/config
+    remote_src: yes
+    mode: '0600'
+
+- name: Display K3s installation info
+  debug:
+    msg: "K3s master node installed successfully. Token saved for workers."

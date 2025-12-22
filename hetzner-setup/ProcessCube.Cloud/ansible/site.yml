@@ -1,0 +1,111 @@
+---
+- name: Setup K3s Cluster
+  hosts: all
+  gather_facts: yes
+  become: yes
+  serial: 1
+  tasks:
+    - name: Wait for system to be ready
+      wait_for_connection:
+        timeout: 300
+
+    - name: Update apt cache
+      apt:
+        update_cache: yes
+        cache_valid_time: 3600
+
+- name: Install Tailscale on all nodes
+  hosts: k3s_cluster
+  gather_facts: yes
+  become: yes
+  roles:
+    - role: tailscale
+      when: tailscale_auth_key is defined and tailscale_auth_key != ""
+
+- name: Create K3s user and prepare system
+  hosts: k3s_cluster
+  gather_facts: yes
+  become: yes
+  roles:
+    - k3s_user
+
+- name: Configure K3s Master Node
+  hosts: k3s_master
+  gather_facts: yes
+  become: yes
+  roles:
+    - k3s_master
+
+- name: Install Hetzner Cloud Controller Manager
+  hosts: k3s_master
+  gather_facts: no
+  become: yes
+  roles:
+    - k3s_ccm
+
+- name: Retrieve K3s token from master
+  hosts: k3s_master
+  gather_facts: no
+  become: yes
+  tasks:
+    - name: Read K3s token
+      slurp:
+        src: /var/lib/rancher/k3s/server/node-token
+      register: k3s_master_token
+
+    - name: Set token fact for workers
+      set_fact:
+        k3s_join_token: "{{ k3s_master_token.content | b64decode | trim }}"
+      delegate_to: "{{ item }}"
+      delegate_facts: true
+      with_items: "{{ groups['k3s_workers'] }}"
+
+- name: Configure K3s Worker Nodes
+  hosts: k3s_workers
+  gather_facts: yes
+  become: yes
+  roles:
+    - k3s_worker
+
+- name: Install K3s Addons (CSI, Ingress, cert-manager)
+  hosts: k3s_master
+  gather_facts: no
+  become: yes
+  roles:
+    - k3s_addons
+
+- name: Install External Secrets Operator with 1Password
+  hosts: k3s_master
+  gather_facts: no
+  become: yes
+  roles:
+    - external_secrets
+
+- name: Install ArgoCD
+  hosts: k3s_master
+  gather_facts: no
+  become: yes
+  roles:
+    - argocd
+
+- name: Verify Cluster
+  hosts: k3s_master
+  gather_facts: no
+  become: yes
+  tasks:
+    - name: Wait for all nodes to be ready
+      shell: kubectl get nodes --no-headers | grep -v NotReady | wc -l
+      register: ready_nodes
+      until: ready_nodes.stdout|int == groups['k3s_cluster']|length
+      retries: 30
+      delay: 10
+      changed_when: false
+
+    - name: Display cluster status
+      shell: kubectl get nodes
+      register: cluster_status
+      changed_when: false
+
+    - name: Show cluster nodes
+      debug:
+        var: cluster_status.stdout_lines

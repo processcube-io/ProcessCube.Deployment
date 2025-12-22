@@ -1,0 +1,215 @@
+---
+- name: Wait for all nodes to be initialized by CCM
+  shell: |
+    for node in $(kubectl get nodes -o jsonpath='{.items[*].metadata.name}'); do
+      providerid=$(kubectl get node $node -o jsonpath='{.spec.providerID}')
+      if [[ -z "$providerid" || ! "$providerid" =~ ^hcloud:// ]]; then
+        exit 1
+      fi
+    done
+    exit 0
+  args:
+    executable: /bin/bash
+  register: providerid_check
+  until: providerid_check.rc == 0
+  retries: 60
+  delay: 5
+  changed_when: false
+
+- name: Download Hetzner CSI Driver manifest
+  get_url:
+    url: https://raw.githubusercontent.com/hetznercloud/csi-driver/{{ hcloud_csi_version }}/deploy/kubernetes/hcloud-csi.yml
+    dest: /tmp/hcloud-csi.yml
+    mode: '0644'
+
+- name: Install Hetzner CSI Driver
+  shell: kubectl apply -f /tmp/hcloud-csi.yml
+  register: csi_install
+  changed_when: "'created' in csi_install.stdout or 'configured' in csi_install.stdout"
+
+- name: Wait for CSI Driver to be ready
+  shell: kubectl get pods -n kube-system -l app.kubernetes.io/name=hcloud-csi -o jsonpath='{.items[*].status.phase}'
+  register: csi_status
+  until: "'Running' in csi_status.stdout"
+  retries: 30
+  delay: 10
+  changed_when: false
+
+- name: Label all nodes for LoadBalancer targeting
+  shell: kubectl label nodes --all loadbalancer-target=true --overwrite
+  changed_when: true
+
+- name: Download Nginx Ingress Controller manifest
+  get_url:
+    url: https://raw.githubusercontent.com/kubernetes/ingress-nginx/controller-v1.14.0/deploy/static/provider/cloud/deploy.yaml
+    dest: /tmp/ingress-nginx-deploy.yaml
+    mode: '0644'
+
+- name: Patch Nginx Ingress Controller to use DaemonSet
+  shell: |
+    # Convert Deployment to DaemonSet
+    sed -i 's/kind: Deployment/kind: DaemonSet/' /tmp/ingress-nginx-deploy.yaml
+    # Remove replicas field (not valid for DaemonSet)
+    sed -i '/replicas:/d' /tmp/ingress-nginx-deploy.yaml
+    # Remove strategy field (not valid for DaemonSet)
+    sed -i '/strategy:/,/type:/d' /tmp/ingress-nginx-deploy.yaml
+    # Use host network for direct port binding
+    sed -i '/dnsPolicy: ClusterFirst/i\      hostNetwork: true' /tmp/ingress-nginx-deploy.yaml
+  args:
+    executable: /bin/bash
+  changed_when: true
+
+- name: Install Nginx Ingress Controller as DaemonSet
+  shell: kubectl apply -f /tmp/ingress-nginx-deploy.yaml
+  register: nginx_install
+  changed_when: "'created' in nginx_install.stdout or 'configured' in nginx_install.stdout"
+
+- name: Wait for Nginx Ingress Controller to be ready on all nodes
+  shell: |
+    node_count=$(kubectl get nodes --no-headers | wc -l)
+    ready_count=$(kubectl get pods -n ingress-nginx -l app.kubernetes.io/component=controller --field-selector=status.phase=Running --no-headers | wc -l)
+    if [ "$ready_count" -eq "$node_count" ]; then
+      exit 0
+    else
+      exit 1
+    fi
+  args:
+    executable: /bin/bash
+  register: nginx_status
+  until: nginx_status.rc == 0
+  retries: 30
+  delay: 10
+  changed_when: false
+
+- name: Annotate Nginx Ingress Service for Hetzner LoadBalancer
+  shell: |
+    kubectl annotate service ingress-nginx-controller \
+      -n ingress-nginx \
+      load-balancer.hetzner.cloud/location="{{ location }}" \
+      load-balancer.hetzner.cloud/use-private-ip="true" \
+      load-balancer.hetzner.cloud/uses-proxyprotocol="false" \
+      load-balancer.hetzner.cloud/name="{{ cluster_name }}-lb" \
+      load-balancer.hetzner.cloud/node-selector="loadbalancer-target=true" \
+      load-balancer.hetzner.cloud/health-check-interval="10s" \
+      load-balancer.hetzner.cloud/health-check-timeout="5s" \
+      load-balancer.hetzner.cloud/health-check-retries="3" \
+      --overwrite
+  changed_when: true
+
+- name: Wait a moment for LoadBalancer to start provisioning
+  pause:
+    seconds: 15
+
+- name: Wait for LoadBalancer to be provisioned
+  shell: kubectl get svc ingress-nginx-controller -n ingress-nginx -o jsonpath='{.status.loadBalancer.ingress[0].ip}'
+  register: lb_ip
+  until: lb_ip.stdout != ""
+  retries: 60
+  delay: 10
+  changed_when: false
+
+- name: Display LoadBalancer IP
+  debug:
+    msg: "LoadBalancer IP: {{ lb_ip.stdout }}"
+
+- name: Install cert-manager
+  shell: |
+    kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/v1.13.3/cert-manager.yaml
+  register: certmanager_install
+  changed_when: "'created' in certmanager_install.stdout or 'configured' in certmanager_install.stdout"
+
+- name: Wait for cert-manager to be ready
+  shell: kubectl get pods -n cert-manager -o jsonpath='{.items[*].status.phase}'
+  register: certmanager_status
+  until: certmanager_status.stdout.find('Running') != -1 and (certmanager_status.stdout | regex_findall('Running') | length) >= 3
+  retries: 30
+  delay: 10
+  changed_when: false
+
+- name: Wait for cert-manager webhook to be ready
+  shell: kubectl get deployment -n cert-manager cert-manager-webhook -o jsonpath='{.status.availableReplicas}'
+  register: webhook_status
+  until: webhook_status.stdout | int > 0
+  retries: 30
+  delay: 10
+  changed_when: false
+
+- name: Wait for cert-manager webhook endpoint to be ready
+  shell: kubectl get endpoints -n cert-manager cert-manager-webhook -o jsonpath='{.subsets[*].addresses[*].ip}'
+  register: webhook_endpoint
+  until: webhook_endpoint.stdout != ""
+  retries: 30
+  delay: 10
+  changed_when: false
+
+- name: Wait for webhook configuration to be registered
+  shell: kubectl get validatingwebhookconfigurations cert-manager-webhook
+  register: webhook_config
+  until: webhook_config.rc == 0
+  retries: 30
+  delay: 10
+  changed_when: false
+  ignore_errors: true
+
+- name: Wait additional time for webhook to be fully operational
+  pause:
+    seconds: 60
+
+- name: Create Let's Encrypt Staging ClusterIssuer
+  shell: |
+    kubectl apply -f - <<EOF
+    apiVersion: cert-manager.io/v1
+    kind: ClusterIssuer
+    metadata:
+      name: letsencrypt-staging
+    spec:
+      acme:
+        server: https://acme-staging-v02.api.letsencrypt.org/directory
+        email: {{ letsencrypt_email }}
+        privateKeySecretRef:
+          name: letsencrypt-staging-key
+        solvers:
+        - http01:
+            ingress:
+              class: nginx
+    EOF
+  changed_when: true
+
+- name: Create Let's Encrypt Production ClusterIssuer
+  shell: |
+    kubectl apply -f - <<EOF
+    apiVersion: cert-manager.io/v1
+    kind: ClusterIssuer
+    metadata:
+      name: letsencrypt-production
+    spec:
+      acme:
+        server: https://acme-v02.api.letsencrypt.org/directory
+        email: {{ letsencrypt_email }}
+        privateKeySecretRef:
+          name: letsencrypt-production-key
+        solvers:
+        - http01:
+            ingress:
+              class: nginx
+    EOF
+  changed_when: true
+
+- name: Display addons installation info
+  debug:
+    msg:
+      - "Hetzner CSI Driver installed successfully"
+      - "Nginx Ingress Controller installed successfully"
+      - "LoadBalancer created automatically by CCM"
+      - "cert-manager installed successfully"
+      - "Let's Encrypt ClusterIssuers configured:"
+      - "  - letsencrypt-staging (for testing)"
+      - "  - letsencrypt-production (for production use)"
+      - ""
+      - "LoadBalancer IP: {{ lb_ip.stdout }}"
+      - "Ingress available at: http://{{ lb_ip.stdout }}"
+      - ""
+      - "To use TLS certificates, add these annotations to your Ingress:"
+      - "  cert-manager.io/cluster-issuer: letsencrypt-staging"
+      - "  or"
+      - "  cert-manager.io/cluster-issuer: letsencrypt-production"

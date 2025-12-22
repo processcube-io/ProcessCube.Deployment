@@ -1,0 +1,81 @@
+---
+- name: Wait for K3s to be fully ready
+  shell: kubectl get nodes --no-headers | grep -q Ready
+  register: k3s_ready
+  until: k3s_ready.rc == 0
+  retries: 30
+  delay: 10
+  changed_when: false
+
+- name: Create Hetzner Cloud secret (for CCM)
+  shell: |
+    kubectl create secret generic hcloud \
+      --from-literal=token={{ hcloud_token }} \
+      --from-literal=network={{ cluster_name }}-network \
+      --namespace=kube-system \
+      --dry-run=client -o yaml | kubectl apply -f -
+  changed_when: false
+
+- name: Download Hetzner Cloud Controller Manager manifest
+  get_url:
+    url: https://github.com/hetznercloud/hcloud-cloud-controller-manager/releases/download/{{ hcloud_ccm_version }}/ccm-networks.yaml
+    dest: /tmp/hcloud-ccm.yaml
+    mode: '0644'
+
+- name: Install Hetzner Cloud Controller Manager
+  shell: kubectl apply -f /tmp/hcloud-ccm.yaml
+  register: ccm_install
+  changed_when: "'created' in ccm_install.stdout or 'configured' in ccm_install.stdout"
+
+- name: Wait a moment for CCM pods to be created
+  pause:
+    seconds: 10
+
+- name: Check CCM pod status for debugging
+  shell: kubectl get pods -n kube-system -l app=hcloud-cloud-controller-manager
+  register: ccm_pods_debug
+  changed_when: false
+  ignore_errors: true
+
+- name: Display CCM pod status
+  debug:
+    msg: "{{ ccm_pods_debug.stdout_lines }}"
+
+- name: Get CCM pod logs if any issues
+  shell: kubectl logs -n kube-system -l app=hcloud-cloud-controller-manager --tail=50
+  register: ccm_logs
+  changed_when: false
+  ignore_errors: true
+
+- name: Display CCM logs
+  debug:
+    msg: "{{ ccm_logs.stdout_lines }}"
+  when: ccm_logs.rc == 0
+
+- name: Wait for Cloud Controller Manager to be ready
+  shell: kubectl get pods -n kube-system -l app=hcloud-cloud-controller-manager -o jsonpath='{.items[*].status.phase}'
+  register: ccm_status
+  until: "'Running' in ccm_status.stdout"
+  retries: 60
+  delay: 10
+  changed_when: false
+
+- name: Wait for CCM to initialize master node
+  shell: |
+    master_node=$(kubectl get nodes -l node-role.kubernetes.io/control-plane -o jsonpath='{.items[0].metadata.name}')
+    providerid=$(kubectl get node $master_node -o jsonpath='{.spec.providerID}')
+    if [[ -z "$providerid" || ! "$providerid" =~ ^hcloud:// ]]; then
+      exit 1
+    fi
+    exit 0
+  args:
+    executable: /bin/bash
+  register: master_providerid_check
+  until: master_providerid_check.rc == 0
+  retries: 60
+  delay: 5
+  changed_when: false
+
+- name: Display CCM installation info
+  debug:
+    msg: "Hetzner Cloud Controller Manager installed successfully and master node initialized"

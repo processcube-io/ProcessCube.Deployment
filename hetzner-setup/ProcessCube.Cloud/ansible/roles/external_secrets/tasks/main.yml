@@ -1,0 +1,103 @@
+---
+- name: Create external-secrets namespace
+  shell: kubectl create namespace {{ onepassword_connect_namespace }} --dry-run=client -o yaml | kubectl apply -f -
+  changed_when: true
+
+- name: Install External Secrets Operator
+  shell: |
+    helm repo add external-secrets https://charts.external-secrets.io || true
+    helm repo update
+    helm upgrade --install external-secrets \
+      external-secrets/external-secrets \
+      -n {{ onepassword_connect_namespace }} \
+      --version {{ external_secrets_version }} \
+      --create-namespace \
+      --wait
+  register: eso_install
+  changed_when: "'has been upgraded' in eso_install.stdout or 'has been installed' in eso_install.stdout"
+
+- name: Wait for External Secrets Operator to be ready
+  shell: |
+    ready_count=$(kubectl get pods -n {{ onepassword_connect_namespace }} --field-selector=status.phase=Running --no-headers | grep external-secrets | wc -l)
+    if [ "$ready_count" -ge 1 ]; then
+      exit 0
+    else
+      exit 1
+    fi
+  args:
+    executable: /bin/bash
+  register: eso_status
+  until: eso_status.rc == 0
+  retries: 30
+  delay: 10
+  changed_when: false
+
+- name: Resolve 1Password credentials path
+  set_fact:
+    onepassword_credentials_full_path: "{{ onepassword_credentials_json | realpath }}"
+  when: onepassword_credentials_json != ""
+  delegate_to: localhost
+
+- name: Copy 1Password credentials to remote host
+  copy:
+    content: "{{ lookup('file', onepassword_credentials_full_path) }}"
+    dest: /tmp/1password-credentials.json
+    mode: '0600'
+  when: onepassword_credentials_json != ""
+
+- name: Install 1Password Connect
+  shell: |
+    helm repo add 1password https://1password.github.io/connect-helm-charts || true
+    helm repo update
+    helm upgrade --install onepassword-connect \
+      1password/connect \
+      -n {{ onepassword_connect_namespace }} \
+      --version {{ onepassword_connect_version }} \
+      --set-file connect.credentials="/tmp/1password-credentials.json" \
+      --set operator.create=false \
+      --wait
+  when: onepassword_credentials_json != ""
+  register: op_connect_install
+  changed_when: "'has been upgraded' in op_connect_install.stdout or 'has been installed' in op_connect_install.stdout"
+
+- name: Wait for 1Password Connect to be ready
+  shell: |
+    ready_count=$(kubectl get pods -n {{ onepassword_connect_namespace }} --field-selector=status.phase=Running --no-headers | grep onepassword-connect | wc -l)
+    if [ "$ready_count" -ge 1 ]; then
+      exit 0
+    else
+      exit 1
+    fi
+  args:
+    executable: /bin/bash
+  register: op_connect_status
+  until: op_connect_status.rc == 0
+  retries: 30
+  delay: 10
+  changed_when: false
+  when: onepassword_credentials_json != ""
+
+- name: Remove temporary 1Password credentials file
+  file:
+    path: /tmp/1password-credentials.json
+    state: absent
+  when: onepassword_credentials_json != ""
+
+- name: Display External Secrets installation info
+  debug:
+    msg:
+      - "External Secrets Operator {{ external_secrets_version }} installed successfully!"
+      - ""
+      - "1Password Connect installed and configured"
+      - ""
+      - "Check status with:"
+      - "  kubectl get pods -n {{ onepassword_connect_namespace }}"
+      - ""
+      - "Next steps:"
+      - "1. Create onepassword-connect-token secret in each application namespace:"
+      - "   kubectl create secret generic onepassword-connect-token \\"
+      - "     -n <your-namespace> \\"
+      - "     --from-literal=token='<your-token>'"
+      - ""
+      - "2. Create a SecretStore in your namespace:"
+      - "   See deployment/base/secretstore/secretstore.yaml"

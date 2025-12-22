@@ -1,0 +1,120 @@
+---
+- name: Install required packages
+  apt:
+    name:
+      - curl
+      - wget
+      - ufw
+      - netcat
+    state: present
+    update_cache: yes
+
+- name: Disable swap
+  shell: |
+    swapoff -a
+    sed -i '/ swap / s/^/#/' /etc/fstab
+  changed_when: false
+
+- name: Configure firewall rules for specific ports from anywhere
+  ufw:
+    rule: allow
+    port: "{{ item }}"
+    proto: tcp
+  loop:
+    - "22"
+    - "80"
+    - "443"
+
+- name: Allow kubelet from internal network only
+  ufw:
+    rule: allow
+    port: "10250"
+    proto: tcp
+    from_ip: 10.0.0.0/16
+
+- name: Allow internal cluster network traffic
+  ufw:
+    rule: allow
+    from_ip: 10.0.0.0/16
+
+- name: Allow Pod network traffic
+  ufw:
+    rule: allow
+    from_ip: 10.42.0.0/16
+
+- name: Allow Service network traffic
+  ufw:
+    rule: allow
+    from_ip: 10.43.0.0/16
+
+- name: Enable firewall
+  ufw:
+    state: enabled
+    policy: deny
+
+- name: Wait for master node to be ready
+  wait_for:
+    host: "{{ master_ip }}"
+    port: 6443
+    timeout: 300
+
+- name: Check if K3s is already installed
+  stat:
+    path: /usr/local/bin/k3s
+  register: k3s_binary
+
+- name: Download K3s installation script
+  get_url:
+    url: https://get.k3s.io
+    dest: /tmp/k3s_install.sh
+    mode: '0700'
+  when: not k3s_binary.stat.exists
+
+- name: Get private IP from private network interface
+  shell: ip -4 addr show enp7s0 | grep -oP '(?<=inet\s)\d+(\.\d+){3}'
+  register: worker_private_ip
+  changed_when: false
+
+- name: Get hostname for node name
+  shell: hostname
+  register: node_hostname
+  changed_when: false
+
+- name: Display installation parameters
+  debug:
+    msg:
+      - "Installing K3s worker with:"
+      - "  Version: {{ k3s_version }}"
+      - "  Master IP: {{ master_ip }}"
+      - "  Node IP: {{ worker_private_ip.stdout }}"
+      - "  Node Name: {{ node_hostname.stdout }}"
+
+- name: Install K3s worker
+  shell: |
+    INSTALL_K3S_VERSION="{{ k3s_version }}" \
+    K3S_URL=https://{{ master_ip }}:6443 \
+    K3S_TOKEN="{{ k3s_join_token }}" \
+    INSTALL_K3S_EXEC="--node-ip {{ worker_private_ip.stdout }} --flannel-iface=enp7s0 --kubelet-arg cloud-provider=external" \
+    /tmp/k3s_install.sh 2>&1 | tee /tmp/k3s-install.log
+  args:
+    creates: /usr/local/bin/k3s
+  when: not k3s_binary.stat.exists
+  register: k3s_install_output
+  async: 300
+  poll: 10
+
+- name: Display K3s installation output
+  debug:
+    msg: "{{ k3s_install_output.stdout_lines }}"
+  when: k3s_install_output is defined and k3s_install_output.stdout_lines is defined
+
+- name: Enable and start K3s agent service
+  systemd:
+    name: k3s-agent
+    enabled: yes
+    state: started
+    daemon_reload: yes
+
+- name: Display K3s worker installation info
+  debug:
+    msg: "K3s worker node joined the cluster successfully."

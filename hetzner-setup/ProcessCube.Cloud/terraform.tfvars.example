@@ -1,0 +1,29 @@
+# Hetzner Cloud Configuration
+hcloud_token = "YOUR_HETZNER_API_TOKEN_HERE"
+
+# Cluster Configuration
+cluster_name = "processcube-k3s"
+location     = "fsn1"  # Options: nbg1, fsn1, hel1
+server_type  = "cx43"  # Options: cx11, cx21, cx31, cx41, cx51
+worker_count = 2
+
+# K3s Version
+k3s_version = "v1.28.5+k3s1"
+
+# Hetzer csi-Driver
+hcloud_csi_version = "v2.18.1"
+
+# SSH Key Paths
+ssh_public_key_path = "~/.ssh/id_rsa.pub"
+ssh_private_key_path = "~/.ssh/id_rsa"
+
+# Let's encrypt
+letsencrypt_email = "info@processcube.io"
+
+# Tailscale Configuration
+tailscale_auth_key = "YOUR_TAILSCALE_AUTH_KEY_HERE"
+# tailscale_tags     = "tag:k3s"  # Optional: Uncomment to use tags
+
+# 1Password Connect Configuration for External Secrets Operator
+onepassword_credentials_json = "/path/to/1password-credentials.json"
+# Note: onepassword-connect-token must be created per application namespace

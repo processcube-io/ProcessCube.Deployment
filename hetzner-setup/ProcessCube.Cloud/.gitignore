@@ -1,0 +1,30 @@
+# Terraform files
+*.tfstate
+*.tfstate.*
+.terraform/
+.terraform.lock.hcl
+crash.log
+crash.*.log
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+
+# Sensitive files
+terraform.tfvars
+*.tfvars
+.terraformrc
+terraform.rc
+
+# Kubeconfig
+kubeconfig.yaml
+*.kubeconfig
+
+# SSH keys
+*.pem
+*.key
+id_rsa*
+
+# OS files
+.DS_Store
+Thumbs.db

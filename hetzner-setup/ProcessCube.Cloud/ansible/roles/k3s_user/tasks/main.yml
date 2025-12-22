@@ -1,0 +1,41 @@
+---
+- name: Create required directories
+  file:
+    path: "{{ item }}"
+    state: directory
+    owner: root
+    group: root
+    mode: '0755'
+  loop:
+    - /etc/rancher/k3s
+    - /var/lib/rancher/k3s
+    - /var/log/k3s
+
+- name: Load required kernel modules
+  modprobe:
+    name: "{{ item }}"
+    state: present
+  loop:
+    - br_netfilter
+    - overlay
+
+- name: Ensure kernel modules are loaded on boot
+  copy:
+    content: |
+      br_netfilter
+      overlay
+    dest: /etc/modules-load.d/k3s.conf
+    owner: root
+    group: root
+    mode: '0644'
+
+- name: Configure sysctl for k3s
+  sysctl:
+    name: "{{ item.key }}"
+    value: "{{ item.value }}"
+    state: present
+    reload: yes
+  loop:
+    - { key: 'net.ipv4.ip_forward', value: '1' }
+    - { key: 'net.bridge.bridge-nf-call-iptables', value: '1' }
+    - { key: 'net.bridge.bridge-nf-call-ip6tables', value: '1' }
