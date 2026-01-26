@@ -29,5 +29,4 @@ tailscale_tags=${tailscale_tags}
 onepassword_credentials_json=${onepassword_credentials_json}
 %{ endif ~}
 processcube_api_key=${processcube_api_key}
-cuby_domain=${cuby_domain}
 ansible_python_interpreter=/usr/bin/python3

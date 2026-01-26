@@ -97,8 +97,3 @@ variable "processcube_api_key" {
   type        = string
   sensitive   = true
 }
-
-variable "cuby_domain" {
-  description = "Domain for Cuby operator ingress (e.g. cuby.example.com)"
-  type        = string
-}

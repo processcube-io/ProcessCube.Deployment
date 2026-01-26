@@ -201,7 +201,6 @@ resource "local_file" "ansible_inventory" {
     tailscale_tags       = var.tailscale_tags
     onepassword_credentials_json = var.onepassword_credentials_json
     processcube_api_key          = var.processcube_api_key
-    cuby_domain                  = var.cuby_domain
   })
   filename = "${path.module}/ansible/inventory/hosts"
 
