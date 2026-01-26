@@ -31,3 +31,4 @@ tailscale_auth_key = "YOUR_TAILSCALE_AUTH_KEY_HERE"
 
 # ProcessCube Marketplace Configuration
 processcube_api_key = "YOUR_PROCESSCUBE_API_KEY_HERE"
+cuby_domain = "cuby.example.com"

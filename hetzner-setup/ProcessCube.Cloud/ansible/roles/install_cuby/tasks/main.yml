@@ -21,11 +21,35 @@
       --dry-run=client -o yaml | kubectl apply -f -
   changed_when: true
 
-- name: Display ProcessCube setup info
+- name: Template Cuby Operator manifest
+  template:
+    src: cuby-operator.yaml.j2
+    dest: /tmp/cuby-operator.yaml
+    mode: '0644'
+
+- name: Deploy Cuby Operator
+  shell: kubectl apply -f /tmp/cuby-operator.yaml
+  register: cuby_deploy
+  changed_when: "'created' in cuby_deploy.stdout or 'configured' in cuby_deploy.stdout"
+
+- name: Wait for Cuby Operator to be ready
+  shell: |
+    kubectl rollout status deployment/cuby-operator -n processcube --timeout=120s
+  register: cuby_status
+  changed_when: false
+
+- name: Remove temporary manifest
+  file:
+    path: /tmp/cuby-operator.yaml
+    state: absent
+
+- name: Display Cuby setup info
   debug:
     msg:
-      - "ProcessCube secrets created in namespace 'processcube'"
+      - "Cuby Operator deployed successfully in namespace 'processcube'"
       - ""
       - "Available secrets:"
       - "  - regcred (ImagePull Secret)"
       - "  - processcube-api-key (API Key Secret)"
+      - ""
+      - "Cuby is available at: https://{{ cuby_domain }}"

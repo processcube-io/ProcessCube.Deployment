@@ -1,0 +1,232 @@
+# Cuby Operator Kubernetes Manifests
+# Managed by Ansible
+
+---
+# ServiceAccount
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: cuby-operator
+  namespace: processcube
+  labels:
+    app.kubernetes.io/name: cuby
+    app.kubernetes.io/component: operator
+
+---
+# ClusterRole - permissions to manage ProcessCube resources
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: cuby-operator
+  labels:
+    app.kubernetes.io/name: cuby
+    app.kubernetes.io/component: operator
+rules:
+  # Manage Deployments, Services, ConfigMaps, Secrets
+  - apiGroups: [""]
+    resources: ["services", "configmaps", "secrets", "persistentvolumeclaims"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  - apiGroups: ["apps"]
+    resources: ["deployments", "statefulsets"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  # Manage Ingress
+  - apiGroups: ["networking.k8s.io"]
+    resources: ["ingresses"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  # Read Pods and Logs
+  - apiGroups: [""]
+    resources: ["pods", "pods/log"]
+    verbs: ["get", "list", "watch"]
+  # Read Nodes (for status)
+  - apiGroups: [""]
+    resources: ["nodes"]
+    verbs: ["get", "list"]
+  # Read Namespaces
+  - apiGroups: [""]
+    resources: ["namespaces"]
+    verbs: ["get", "list", "watch", "create"]
+
+---
+# ClusterRoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: cuby-operator
+  labels:
+    app.kubernetes.io/name: cuby
+    app.kubernetes.io/component: operator
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: cuby-operator
+subjects:
+  - kind: ServiceAccount
+    name: cuby-operator
+    namespace: processcube
+
+---
+# ConfigMap for Cuby configuration
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cuby-config
+  namespace: processcube
+  labels:
+    app.kubernetes.io/name: cuby
+    app.kubernetes.io/component: operator
+data:
+  # Configuration will be mounted to /data/config.json
+  config.json: |
+    {
+      "deploymentTarget": "cloud",
+      "setupComplete": false
+    }
+
+---
+# PersistentVolumeClaim for Cuby data
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: cuby-data
+  namespace: processcube
+  labels:
+    app.kubernetes.io/name: cuby
+    app.kubernetes.io/component: operator
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+  storageClassName: hcloud-volumes
+
+---
+# Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cuby-operator
+  namespace: processcube
+  labels:
+    app.kubernetes.io/name: cuby
+    app.kubernetes.io/component: operator
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: cuby
+      app.kubernetes.io/component: operator
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: cuby
+        app.kubernetes.io/component: operator
+    spec:
+      serviceAccountName: cuby-operator
+      imagePullSecrets:
+        - name: regcred
+      containers:
+        - name: cuby
+          image: marketplace.processcube.io/5minds/cuby:latest
+          imagePullPolicy: Always
+          ports:
+            - name: http
+              containerPort: 3847
+              protocol: TCP
+          env:
+            - name: NODE_ENV
+              value: "production"
+            - name: CUBY_MODE
+              value: "operator"
+            - name: CUBY_CONFIG_DIR
+              value: "/data"
+            - name: PORT
+              value: "3847"
+            - name: KUBERNETES_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+          volumeMounts:
+            - name: data
+              mountPath: /data
+            - name: config
+              mountPath: /data/config.json
+              subPath: config.json
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          livenessProbe:
+            httpGet:
+              path: /api/health
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /api/health
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: cuby-data
+        - name: config
+          configMap:
+            name: cuby-config
+
+---
+# Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: cuby-operator
+  namespace: processcube
+  labels:
+    app.kubernetes.io/name: cuby
+    app.kubernetes.io/component: operator
+spec:
+  type: ClusterIP
+  ports:
+    - name: http
+      port: 80
+      targetPort: http
+      protocol: TCP
+  selector:
+    app.kubernetes.io/name: cuby
+    app.kubernetes.io/component: operator
+
+---
+# Ingress
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: cuby-operator
+  namespace: processcube
+  labels:
+    app.kubernetes.io/name: cuby
+    app.kubernetes.io/component: operator
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    nginx.ingress.kubernetes.io/proxy-body-size: "50m"
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts:
+        - {{ cuby_domain }}
+      secretName: cuby-tls
+  rules:
+    - host: {{ cuby_domain }}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: cuby-operator
+                port:
+                  name: http
