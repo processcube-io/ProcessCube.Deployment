@@ -91,3 +91,9 @@ variable "onepassword_credentials_json" {
   sensitive   = true
   default     = ""
 }
+
+variable "processcube_api_key" {
+  description = "ProcessCube API key for marketplace.processcube.io image registry"
+  type        = string
+  sensitive   = true
+}

@@ -28,4 +28,5 @@ tailscale_tags=${tailscale_tags}
 %{ if onepassword_credentials_json != "" ~}
 onepassword_credentials_json=${onepassword_credentials_json}
 %{ endif ~}
+processcube_api_key=${processcube_api_key}
 ansible_python_interpreter=/usr/bin/python3

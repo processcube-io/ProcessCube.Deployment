@@ -89,6 +89,13 @@
   roles:
     - argocd
 
+- name: Install Cuby
+  hosts: k3s_master
+  gather_facts: no
+  become: yes
+  roles:
+    - install_cuby
+
 - name: Verify Cluster
   hosts: k3s_master
   gather_facts: no

@@ -28,3 +28,6 @@ tailscale_auth_key = "YOUR_TAILSCALE_AUTH_KEY_HERE"
 # onepassword_credentials_json = "/path/to/1password-credentials.json"
 # Note: External Secrets Operator will only be installed if this is set
 # Note: onepassword-connect-token must be created per application namespace
+
+# ProcessCube Marketplace Configuration
+processcube_api_key = "YOUR_PROCESSCUBE_API_KEY_HERE"
