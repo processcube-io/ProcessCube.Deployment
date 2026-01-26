@@ -28,3 +28,7 @@ id_rsa*
 # OS files
 .DS_Store
 Thumbs.db
+
+# Generated files
+cuby_domain.txt
+ansible/inventory/hosts

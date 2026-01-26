@@ -51,3 +51,8 @@ output "ssh_commands" {
     workers = [for worker in hcloud_server.k3s_worker : "ssh root@${worker.ipv4_address}"]
   }
 }
+
+output "cuby_url" {
+  description = "URL to access Cuby operator"
+  value       = fileexists("${path.module}/cuby_domain.txt") ? "https://${trimspace(file("${path.module}/cuby_domain.txt"))}" : "Run 'terraform apply' to deploy the cluster first"
+}

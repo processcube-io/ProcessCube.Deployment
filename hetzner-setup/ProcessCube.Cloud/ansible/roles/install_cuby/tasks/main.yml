@@ -34,6 +34,13 @@
   set_fact:
     cuby_domain: "cuby.{{ loadbalancer_ip_result.stdout }}.nip.io"
 
+- name: Save cuby_domain to local file
+  copy:
+    content: "{{ cuby_domain }}"
+    dest: "{{ playbook_dir }}/../cuby_domain.txt"
+    mode: '0644'
+  delegate_to: localhost
+
 - name: Template Cuby Operator manifest
   template:
     src: cuby-operator.yaml.j2
