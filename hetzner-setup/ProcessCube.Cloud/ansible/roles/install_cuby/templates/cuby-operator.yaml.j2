@@ -213,7 +213,7 @@ metadata:
     app.kubernetes.io/name: cuby
     app.kubernetes.io/component: operator
   annotations:
-    cert-manager.io/cluster-issuer: letsencrypt-prod
+    cert-manager.io/cluster-issuer: letsencrypt-production
     nginx.ingress.kubernetes.io/proxy-body-size: "50m"
 spec:
   ingressClassName: nginx
