@@ -40,6 +40,7 @@
     dest: "{{ playbook_dir }}/../cuby_domain.txt"
     mode: '0644'
   delegate_to: localhost
+  become: false
 
 - name: Template Cuby Operator manifest
   template:
