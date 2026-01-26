@@ -21,6 +21,19 @@
       --dry-run=client -o yaml | kubectl apply -f -
   changed_when: true
 
+- name: Get LoadBalancer IP from ingress-nginx
+  shell: |
+    kubectl get svc -n ingress-nginx ingress-nginx-controller -o jsonpath='{.status.loadBalancer.ingress[0].ip}'
+  register: loadbalancer_ip_result
+  until: loadbalancer_ip_result.stdout != ""
+  retries: 30
+  delay: 10
+  changed_when: false
+
+- name: Set cuby_domain fact
+  set_fact:
+    cuby_domain: "cuby.{{ loadbalancer_ip_result.stdout }}.nip.io"
+
 - name: Template Cuby Operator manifest
   template:
     src: cuby-operator.yaml.j2
@@ -52,6 +65,4 @@
       - "  - regcred (ImagePull Secret)"
       - "  - processcube-api-key (API Key Secret)"
       - ""
-      - "Access Cuby via port-forward:"
-      - "  kubectl port-forward svc/cuby-operator -n processcube 3847:80"
-      - "  Then open: http://localhost:3847"
+      - "Cuby is available at: https://{{ cuby_domain }}"

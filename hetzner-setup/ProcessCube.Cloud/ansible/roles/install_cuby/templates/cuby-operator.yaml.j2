@@ -201,3 +201,34 @@ spec:
   selector:
     app.kubernetes.io/name: cuby
     app.kubernetes.io/component: operator
+
+---
+# Ingress
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: cuby-operator
+  namespace: processcube
+  labels:
+    app.kubernetes.io/name: cuby
+    app.kubernetes.io/component: operator
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    nginx.ingress.kubernetes.io/proxy-body-size: "50m"
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts:
+        - {{ cuby_domain }}
+      secretName: cuby-tls
+  rules:
+    - host: {{ cuby_domain }}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: cuby-operator
+                port:
+                  name: http
