@@ -24,6 +24,7 @@ letsencrypt_email = "info@processcube.io"
 tailscale_auth_key = "YOUR_TAILSCALE_AUTH_KEY_HERE"
 # tailscale_tags     = "tag:k3s"  # Optional: Uncomment to use tags
 
-# 1Password Connect Configuration for External Secrets Operator
-onepassword_credentials_json = "/path/to/1password-credentials.json"
+# 1Password Connect Configuration for External Secrets Operator (Optional)
+# onepassword_credentials_json = "/path/to/1password-credentials.json"
+# Note: External Secrets Operator will only be installed if this is set
 # Note: onepassword-connect-token must be created per application namespace

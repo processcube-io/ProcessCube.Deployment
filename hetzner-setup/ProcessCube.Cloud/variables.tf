@@ -86,7 +86,8 @@ variable "tailscale_tags" {
 }
 
 variable "onepassword_credentials_json" {
-  description = "Path to 1Password Connect credentials JSON file"
+  description = "Path to 1Password Connect credentials JSON file (optional - External Secrets Operator will only be installed if this is set)"
   type        = string
   sensitive   = true
+  default     = ""
 }

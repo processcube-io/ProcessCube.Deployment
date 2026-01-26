@@ -26,7 +26,7 @@ output "k3s_token" {
 
 output "kubeconfig_command" {
   description = "Command to get kubeconfig from master node"
-  value       = "ssh -i ~/.ssh/id_ed25519_tes root@${hcloud_server.k3s_master.ipv4_address} 'cat /etc/rancher/k3s/k3s.yaml' > kubeconfig.yaml"
+  value       = "ssh root@${hcloud_server.k3s_master.ipv4_address} 'cat /etc/rancher/k3s/k3s.yaml' > kubeconfig.yaml"
 }
 
 output "network_id" {
@@ -47,7 +47,7 @@ output "load_balancer_info" {
 output "ssh_commands" {
   description = "SSH commands to access nodes"
   value = {
-    master  = "ssh -i ~/.ssh/id_ed25519_tes root@${hcloud_server.k3s_master.ipv4_address}"
-    workers = [for worker in hcloud_server.k3s_worker : "ssh -i ~/.ssh/id_ed25519_tes root@${worker.ipv4_address}"]
+    master  = "ssh root@${hcloud_server.k3s_master.ipv4_address}"
+    workers = [for worker in hcloud_server.k3s_worker : "ssh root@${worker.ipv4_address}"]
   }
 }

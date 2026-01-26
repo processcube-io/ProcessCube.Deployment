@@ -79,7 +79,8 @@
   gather_facts: no
   become: yes
   roles:
-    - external_secrets
+    - role: external_secrets
+      when: onepassword_credentials_json is defined and onepassword_credentials_json != ""
 
 - name: Install ArgoCD
   hosts: k3s_master

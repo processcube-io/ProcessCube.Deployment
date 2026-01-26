@@ -25,5 +25,7 @@ letsencrypt_email=${letsencrypt_email}
 tailscale_auth_key=${tailscale_auth_key}
 tailscale_tags=${tailscale_tags}
 %{ endif ~}
+%{ if onepassword_credentials_json != "" ~}
 onepassword_credentials_json=${onepassword_credentials_json}
+%{ endif ~}
 ansible_python_interpreter=/usr/bin/python3
