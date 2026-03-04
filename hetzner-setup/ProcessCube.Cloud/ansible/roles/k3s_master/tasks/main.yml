@@ -1,4 +1,9 @@
 ---
+- name: Force apt to use IPv4
+  copy:
+    content: 'Acquire::ForceIPv4 "true";'
+    dest: /etc/apt/apt.conf.d/99force-ipv4
+
 - name: Install required packages
   apt:
     name:
