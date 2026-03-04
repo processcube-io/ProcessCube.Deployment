@@ -5,7 +5,7 @@
       - curl
       - wget
       - ufw
-      - netcat
+      - netcat-openbsd
     state: present
     update_cache: yes
 
