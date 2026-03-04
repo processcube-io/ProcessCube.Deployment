@@ -1,4 +1,10 @@
 ---
+- name: Prefer IPv4 over IPv6 system-wide
+  lineinfile:
+    path: /etc/gai.conf
+    line: "precedence ::ffff:0:0/96  100"
+    create: yes
+
 - name: Force apt to use IPv4
   copy:
     content: 'Acquire::ForceIPv4 "true";'
