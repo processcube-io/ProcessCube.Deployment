@@ -11,7 +11,6 @@ k3s_master
 k3s_workers
 
 [k3s_cluster:vars]
-k3s_version=${k3s_version}
 k3s_token=${k3s_token}
 master_ip=${master_private_ip}
 cluster_name=${cluster_name}

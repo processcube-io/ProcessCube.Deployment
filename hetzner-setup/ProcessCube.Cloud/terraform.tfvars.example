@@ -7,9 +7,6 @@ location     = "fsn1"  # Options: nbg1, fsn1, hel1
 server_type  = "cx43"  # Options: cx11, cx21, cx31, cx41, cx51
 worker_count = 2
 
-# K3s Version
-k3s_version = "v1.28.5+k3s1"
-
 # Hetzer csi-Driver
 hcloud_csi_version = "v2.18.1"
 

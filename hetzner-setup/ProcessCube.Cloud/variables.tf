@@ -37,12 +37,6 @@ variable "worker_count" {
   default     = 2
 }
 
-variable "k3s_version" {
-  description = "K3s version to install"
-  type        = string
-  default     = "v1.28.5+k3s1"
-}
-
 variable "hcloud_csi_version" {
   description = "Hetzner Cloud CSI Driver version"
   type        = string

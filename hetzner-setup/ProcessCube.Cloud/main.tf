@@ -187,7 +187,6 @@ resource "local_file" "ansible_inventory" {
     master_public_ip     = hcloud_server.k3s_master.ipv4_address
     worker_private_ips   = [for worker in hcloud_server.k3s_worker : one([for net in worker.network : net.ip])]
     worker_public_ips    = [for worker in hcloud_server.k3s_worker : worker.ipv4_address]
-    k3s_version          = var.k3s_version
     k3s_token            = random_password.k3s_token.result
     cluster_name         = var.cluster_name
     ssh_private_key_path = var.ssh_private_key_path

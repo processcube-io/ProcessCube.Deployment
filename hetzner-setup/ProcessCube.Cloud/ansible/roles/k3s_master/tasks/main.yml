@@ -87,7 +87,7 @@
 
 - name: Install K3s master with Tailscale
   shell: |
-    INSTALL_K3S_VERSION="{{ k3s_version }}" \
+    INSTALL_K3S_CHANNEL=stable \
     /tmp/k3s_install.sh server \
       --cluster-init \
       --node-ip {{ private_ip.stdout }} \
@@ -111,7 +111,7 @@
 
 - name: Install K3s master without Tailscale
   shell: |
-    INSTALL_K3S_VERSION="{{ k3s_version }}" \
+    INSTALL_K3S_CHANNEL=stable \
     /tmp/k3s_install.sh server \
       --cluster-init \
       --node-ip {{ private_ip.stdout }} \

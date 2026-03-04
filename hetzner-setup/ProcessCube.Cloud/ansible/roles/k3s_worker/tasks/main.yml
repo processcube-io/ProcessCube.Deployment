@@ -84,14 +84,14 @@
   debug:
     msg:
       - "Installing K3s worker with:"
-      - "  Version: {{ k3s_version }}"
+      - "  Channel: stable (latest)"
       - "  Master IP: {{ master_ip }}"
       - "  Node IP: {{ worker_private_ip.stdout }}"
       - "  Node Name: {{ node_hostname.stdout }}"
 
 - name: Install K3s worker
   shell: |
-    INSTALL_K3S_VERSION="{{ k3s_version }}" \
+    INSTALL_K3S_CHANNEL=stable \
     K3S_URL=https://{{ master_ip }}:6443 \
     K3S_TOKEN="{{ k3s_join_token }}" \
     INSTALL_K3S_EXEC="--node-ip {{ worker_private_ip.stdout }} --flannel-iface=enp7s0 --kubelet-arg cloud-provider=external" \
