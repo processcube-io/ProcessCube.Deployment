@@ -9,6 +9,39 @@
       wait_for_connection:
         timeout: 300
 
+    - name: Prefer IPv4 over IPv6 system-wide
+      lineinfile:
+        path: /etc/gai.conf
+        line: "precedence ::ffff:0:0/96  100"
+        create: yes
+
+    - name: Configure reliable DNS resolvers
+      copy:
+        content: |
+          [Resolve]
+          DNS=185.12.64.1 185.12.64.2 1.1.1.1
+          FallbackDNS=8.8.8.8 8.8.4.4
+        dest: /etc/systemd/resolved.conf
+
+    - name: Restart systemd-resolved
+      systemd:
+        name: systemd-resolved
+        state: restarted
+
+    - name: Force apt to use IPv4
+      copy:
+        content: 'Acquire::ForceIPv4 "true";'
+        dest: /etc/apt/apt.conf.d/99force-ipv4
+
+    - name: Verify DNS resolution
+      shell: resolvectl status && dig +short google.com
+      register: dns_check
+      changed_when: false
+
+    - name: Display DNS status
+      debug:
+        var: dns_check.stdout_lines
+
     - name: Update apt cache
       apt:
         update_cache: yes
