@@ -15,42 +15,17 @@
     sed -i '/ swap / s/^/#/' /etc/fstab
   changed_when: false
 
-- name: Configure firewall rules for specific ports from anywhere
-  ufw:
-    rule: allow
-    port: "{{ item }}"
-    proto: tcp
-  loop:
-    - "22"
-    - "80"
-    - "443"
-
-- name: Allow kubelet from internal network only
-  ufw:
-    rule: allow
-    port: "10250"
-    proto: tcp
-    from_ip: 10.0.0.0/16
-
-- name: Allow internal cluster network traffic
-  ufw:
-    rule: allow
-    from_ip: 10.0.0.0/16
-
-- name: Allow Pod network traffic
-  ufw:
-    rule: allow
-    from_ip: 10.42.0.0/16
-
-- name: Allow Service network traffic
-  ufw:
-    rule: allow
-    from_ip: 10.43.0.0/16
-
-- name: Enable firewall
-  ufw:
-    state: enabled
-    policy: deny
+- name: Configure firewall rules
+  shell: |
+    ufw allow 22/tcp
+    ufw allow 80/tcp
+    ufw allow 443/tcp
+    ufw allow from 10.0.0.0/16 to any port 10250 proto tcp
+    ufw allow from 10.0.0.0/16
+    ufw allow from 10.42.0.0/16
+    ufw allow from 10.43.0.0/16
+    ufw default deny incoming
+    ufw --force enable
 
 - name: Wait for master node to be ready
   wait_for:
