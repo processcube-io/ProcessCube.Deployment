@@ -115,20 +115,6 @@
     - role: external_secrets
       when: onepassword_credentials_json is defined and onepassword_credentials_json != ""
 
-- name: Install ArgoCD
-  hosts: k3s_master
-  gather_facts: no
-  become: yes
-  roles:
-    - argocd
-
-- name: Install Cuby
-  hosts: k3s_master
-  gather_facts: no
-  become: yes
-  roles:
-    - install_cuby
-
 - name: Verify Cluster
   hosts: k3s_master
   gather_facts: no
