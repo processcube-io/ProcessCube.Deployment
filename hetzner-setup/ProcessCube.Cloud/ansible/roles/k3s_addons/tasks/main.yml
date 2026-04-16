@@ -39,74 +39,10 @@
   shell: kubectl label nodes --all loadbalancer-target=true --overwrite
   changed_when: true
 
-- name: Install Gateway API CRDs
-  shell: kubectl apply -f https://github.com/kubernetes-sigs/gateway-api/releases/download/v1.2.0/standard-install.yaml
-  register: gateway_api_install
-  changed_when: "'created' in gateway_api_install.stdout or 'configured' in gateway_api_install.stdout"
-
-- name: Wait for Gateway API CRDs to be established
-  shell: kubectl wait --for=condition=Established crd/gateways.gateway.networking.k8s.io --timeout=60s
-  register: gateway_crd_wait
-  until: gateway_crd_wait.rc == 0
-  retries: 12
-  delay: 5
-  changed_when: false
-
-- name: Add Traefik Helm repository
-  shell: helm repo add traefik https://traefik.github.io/charts && helm repo update
-  changed_when: false
-
-- name: Create traefik namespace
-  shell: kubectl create namespace traefik --dry-run=client -o yaml | kubectl apply -f -
-  changed_when: true
-
-- name: Write Traefik v3 Helm values
-  copy:
-    dest: /tmp/traefik-values.yaml
-    mode: '0644'
-    content: |
-      deployment:
-        kind: DaemonSet
-
-      ports:
-        web:
-          port: 8000
-          exposedPort: 80
-        websecure:
-          port: 8443
-          exposedPort: 443
-
-      service:
-        type: LoadBalancer
-
-      providers:
-        kubernetesGateway:
-          enabled: true
-        kubernetesIngress:
-          enabled: false
-
-      gatewayClass:
-        enabled: true
-        name: traefik
-
-      rbac:
-        enabled: true
-
-- name: Install Traefik v3 with Gateway API support
-  shell: |
-    helm upgrade --install traefik traefik/traefik \
-      --namespace traefik \
-      --version 39.0.7 \
-      --values /tmp/traefik-values.yaml \
-      --wait \
-      --timeout 10m
-  register: traefik_install
-  changed_when: true
-
 - name: Wait for Traefik DaemonSet to be ready on all nodes
   shell: |
     node_count=$(kubectl get nodes --no-headers | wc -l)
-    ready_count=$(kubectl get pods -n traefik -l app.kubernetes.io/name=traefik --field-selector=status.phase=Running --no-headers 2>/dev/null | wc -l)
+    ready_count=$(kubectl get pods -n kube-system -l app.kubernetes.io/name=traefik --field-selector=status.phase=Running --no-headers 2>/dev/null | wc -l)
     if [ "$ready_count" -eq "$node_count" ]; then
       exit 0
     else
@@ -123,7 +59,7 @@
 - name: Annotate Traefik Service for Hetzner LoadBalancer
   shell: |
     kubectl annotate service traefik \
-      -n traefik \
+      -n kube-system \
       load-balancer.hetzner.cloud/location="{{ location }}" \
       load-balancer.hetzner.cloud/use-private-ip="true" \
       load-balancer.hetzner.cloud/uses-proxyprotocol="false" \
@@ -140,7 +76,7 @@
     seconds: 15
 
 - name: Wait for LoadBalancer to be provisioned
-  shell: kubectl get svc traefik -n traefik -o jsonpath='{.status.loadBalancer.ingress[0].ip}'
+  shell: kubectl get svc traefik -n kube-system -o jsonpath='{.status.loadBalancer.ingress[0].ip}'
   register: lb_ip
   until: lb_ip.stdout != ""
   retries: 60

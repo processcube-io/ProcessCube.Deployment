@@ -66,7 +66,6 @@
       --node-name {{ cluster_name }}-master \
       --flannel-backend=vxlan \
       --flannel-iface=enp7s0 \
-      --disable traefik \
       --disable servicelb \
       --disable-cloud-controller \
       --write-kubeconfig-mode 644 \
@@ -89,7 +88,6 @@
       --node-name {{ cluster_name }}-master \
       --flannel-backend=vxlan \
       --flannel-iface=enp7s0 \
-      --disable traefik \
       --disable servicelb \
       --disable-cloud-controller \
       --write-kubeconfig-mode 644 \
@@ -153,6 +151,59 @@
   retries: 30
   delay: 10
   changed_when: false
+
+- name: Install Gateway API CRDs
+  shell: kubectl apply -f https://github.com/kubernetes-sigs/gateway-api/releases/download/v1.2.0/standard-install.yaml
+  register: gateway_api_install
+  changed_when: "'created' in gateway_api_install.stdout or 'configured' in gateway_api_install.stdout"
+
+- name: Wait for Gateway API CRDs to be established
+  shell: kubectl wait --for=condition=Established crd/gateways.gateway.networking.k8s.io --timeout=60s
+  register: gateway_crd_wait
+  until: gateway_crd_wait.rc == 0
+  retries: 12
+  delay: 5
+  changed_when: false
+
+- name: Configure Traefik with Gateway API support
+  copy:
+    dest: /var/lib/rancher/k3s/server/manifests/traefik-config.yaml
+    mode: '0644'
+    content: |
+      apiVersion: helm.cattle.io/v1
+      kind: HelmChartConfig
+      metadata:
+        name: traefik
+        namespace: kube-system
+      spec:
+        valuesContent: |-
+          deployment:
+            kind: DaemonSet
+
+          ports:
+            web:
+              port: 8000
+              exposedPort: 80
+            websecure:
+              port: 8443
+              exposedPort: 443
+
+          service:
+            type: LoadBalancer
+
+          providers:
+            kubernetesGateway:
+              enabled: true
+            kubernetesIngress:
+              enabled: false
+
+          gatewayClass:
+            enabled: true
+            name: traefik
+
+          rbac:
+            enabled: true
+  changed_when: true
 
 - name: Get K3s token
   slurp:
