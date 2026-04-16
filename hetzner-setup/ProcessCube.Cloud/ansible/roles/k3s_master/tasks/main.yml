@@ -207,7 +207,8 @@
                     from: All
                 tls:
                   mode: Terminate
-                  certificateRefs: []
+                  certificateRefs:
+                    - name: traefik-tls-secret
 
           rbac:
             enabled: true
