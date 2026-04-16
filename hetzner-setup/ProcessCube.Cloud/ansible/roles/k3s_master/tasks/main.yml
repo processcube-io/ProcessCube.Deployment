@@ -188,6 +188,16 @@
             enabled: true
             name: traefik
 
+          gateway:
+            enabled: true
+            annotations:
+              cert-manager.io/cluster-issuer: letsencrypt-production
+            listeners:
+              web:
+                namespacePolicy: All
+              websecure:
+                namespacePolicy: All
+
           rbac:
             enabled: true
   changed_when: true

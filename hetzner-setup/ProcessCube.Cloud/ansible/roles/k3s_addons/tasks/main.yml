@@ -147,7 +147,8 @@
         - http01:
             gatewayHTTPRoute:
               parentRefs:
-              - name: processcube-gateway
+              - name: traefik
+                namespace: kube-system
                 kind: Gateway
                 group: gateway.networking.k8s.io
     EOF
@@ -170,7 +171,8 @@
         - http01:
             gatewayHTTPRoute:
               parentRefs:
-              - name: processcube-gateway
+              - name: traefik
+                namespace: kube-system
                 kind: Gateway
                 group: gateway.networking.k8s.io
     EOF
