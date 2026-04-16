@@ -56,6 +56,17 @@
   delay: 10
   changed_when: false
 
+- name: Remove Gateway API CRDs (not needed for Ingress-only setup)
+  shell: |
+    kubectl delete crd \
+      gateways.gateway.networking.k8s.io \
+      gatewayclasses.gateway.networking.k8s.io \
+      httproutes.gateway.networking.k8s.io \
+      grpcroutes.gateway.networking.k8s.io \
+      referencegrants.gateway.networking.k8s.io \
+      --ignore-not-found
+  changed_when: true
+
 - name: Annotate Traefik Service for Hetzner LoadBalancer
   shell: |
     kubectl annotate service traefik \
