@@ -1,6 +1,0 @@
-- op: replace #action
-  path: "/spec/rules/0/host" #resource we want to change
-  value: lowcode.sampleapp.dev.5minds.cloud
-- op: replace #action
-  path: "/spec/tls/0/hosts/0" #resource we want to change
-  value: lowcode.sampleapp.dev.5minds.cloud

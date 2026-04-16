@@ -39,35 +39,77 @@
   shell: kubectl label nodes --all loadbalancer-target=true --overwrite
   changed_when: true
 
-- name: Download Nginx Ingress Controller manifest
-  get_url:
-    url: https://raw.githubusercontent.com/kubernetes/ingress-nginx/controller-v1.14.0/deploy/static/provider/cloud/deploy.yaml
-    dest: /tmp/ingress-nginx-deploy.yaml
-    mode: '0644'
+- name: Install Gateway API CRDs
+  shell: kubectl apply -f https://github.com/kubernetes-sigs/gateway-api/releases/download/v1.2.0/standard-install.yaml
+  register: gateway_api_install
+  changed_when: "'created' in gateway_api_install.stdout or 'configured' in gateway_api_install.stdout"
 
-- name: Patch Nginx Ingress Controller to use DaemonSet
-  shell: |
-    # Convert Deployment to DaemonSet
-    sed -i 's/kind: Deployment/kind: DaemonSet/' /tmp/ingress-nginx-deploy.yaml
-    # Remove replicas field (not valid for DaemonSet)
-    sed -i '/replicas:/d' /tmp/ingress-nginx-deploy.yaml
-    # Remove strategy field (not valid for DaemonSet)
-    sed -i '/strategy:/,/type:/d' /tmp/ingress-nginx-deploy.yaml
-    # Use host network for direct port binding
-    sed -i '/dnsPolicy: ClusterFirst/i\      hostNetwork: true' /tmp/ingress-nginx-deploy.yaml
-  args:
-    executable: /bin/bash
+- name: Wait for Gateway API CRDs to be established
+  shell: kubectl wait --for=condition=Established crd/gateways.gateway.networking.k8s.io --timeout=60s
+  register: gateway_crd_wait
+  until: gateway_crd_wait.rc == 0
+  retries: 12
+  delay: 5
+  changed_when: false
+
+- name: Add Traefik Helm repository
+  shell: helm repo add traefik https://traefik.github.io/charts && helm repo update
+  changed_when: false
+
+- name: Create traefik namespace
+  shell: kubectl create namespace traefik --dry-run=client -o yaml | kubectl apply -f -
   changed_when: true
 
-- name: Install Nginx Ingress Controller as DaemonSet
-  shell: kubectl apply -f /tmp/ingress-nginx-deploy.yaml
-  register: nginx_install
-  changed_when: "'created' in nginx_install.stdout or 'configured' in nginx_install.stdout"
+- name: Write Traefik v3 Helm values
+  copy:
+    dest: /tmp/traefik-values.yaml
+    mode: '0644'
+    content: |
+      deployment:
+        kind: DaemonSet
 
-- name: Wait for Nginx Ingress Controller to be ready on all nodes
+      hostNetwork: true
+      dnsPolicy: ClusterFirstWithHostNet
+
+      ports:
+        web:
+          port: 80
+          exposedPort: 80
+        websecure:
+          port: 443
+          exposedPort: 443
+
+      service:
+        type: LoadBalancer
+
+      providers:
+        kubernetesGateway:
+          enabled: true
+        kubernetesIngress:
+          enabled: false
+
+      gatewayClass:
+        enabled: true
+        name: traefik
+
+      rbac:
+        enabled: true
+
+- name: Install Traefik v3 with Gateway API support
+  shell: |
+    helm upgrade --install traefik traefik/traefik \
+      --namespace traefik \
+      --version 39.0.7 \
+      --values /tmp/traefik-values.yaml \
+      --wait \
+      --timeout 5m
+  register: traefik_install
+  changed_when: true
+
+- name: Wait for Traefik DaemonSet to be ready on all nodes
   shell: |
     node_count=$(kubectl get nodes --no-headers | wc -l)
-    ready_count=$(kubectl get pods -n ingress-nginx -l app.kubernetes.io/component=controller --field-selector=status.phase=Running --no-headers | wc -l)
+    ready_count=$(kubectl get pods -n traefik -l app.kubernetes.io/name=traefik --field-selector=status.phase=Running --no-headers 2>/dev/null | wc -l)
     if [ "$ready_count" -eq "$node_count" ]; then
       exit 0
     else
@@ -75,16 +117,16 @@
     fi
   args:
     executable: /bin/bash
-  register: nginx_status
-  until: nginx_status.rc == 0
+  register: traefik_status
+  until: traefik_status.rc == 0
   retries: 30
   delay: 10
   changed_when: false
 
-- name: Annotate Nginx Ingress Service for Hetzner LoadBalancer
+- name: Annotate Traefik Service for Hetzner LoadBalancer
   shell: |
-    kubectl annotate service ingress-nginx-controller \
-      -n ingress-nginx \
+    kubectl annotate service traefik \
+      -n traefik \
       load-balancer.hetzner.cloud/location="{{ location }}" \
       load-balancer.hetzner.cloud/use-private-ip="true" \
       load-balancer.hetzner.cloud/uses-proxyprotocol="false" \
@@ -101,7 +143,7 @@
     seconds: 15
 
 - name: Wait for LoadBalancer to be provisioned
-  shell: kubectl get svc ingress-nginx-controller -n ingress-nginx -o jsonpath='{.status.loadBalancer.ingress[0].ip}'
+  shell: kubectl get svc traefik -n traefik -o jsonpath='{.status.loadBalancer.ingress[0].ip}'
   register: lb_ip
   until: lb_ip.stdout != ""
   retries: 60
@@ -114,7 +156,7 @@
 
 - name: Install cert-manager
   shell: |
-    kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/v1.13.3/cert-manager.yaml
+    kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/v1.20.2/cert-manager.yaml
   register: certmanager_install
   changed_when: "'created' in certmanager_install.stdout or 'configured' in certmanager_install.stdout"
 
@@ -170,8 +212,11 @@
           name: letsencrypt-staging-key
         solvers:
         - http01:
-            ingress:
-              class: nginx
+            gatewayHTTPRoute:
+              parentRefs:
+              - name: processcube-gateway
+                kind: Gateway
+                group: gateway.networking.k8s.io
     EOF
   changed_when: true
 
@@ -190,8 +235,11 @@
           name: letsencrypt-production-key
         solvers:
         - http01:
-            ingress:
-              class: nginx
+            gatewayHTTPRoute:
+              parentRefs:
+              - name: processcube-gateway
+                kind: Gateway
+                group: gateway.networking.k8s.io
     EOF
   changed_when: true
 
@@ -199,17 +247,18 @@
   debug:
     msg:
       - "Hetzner CSI Driver installed successfully"
-      - "Nginx Ingress Controller installed successfully"
+      - "Traefik v3 Gateway Controller installed successfully"
+      - "Gateway API CRDs (v1.2.0) installed successfully"
       - "LoadBalancer created automatically by CCM"
-      - "cert-manager installed successfully"
+      - "cert-manager v1.20.2 installed successfully"
       - "Let's Encrypt ClusterIssuers configured:"
       - "  - letsencrypt-staging (for testing)"
       - "  - letsencrypt-production (for production use)"
       - ""
       - "LoadBalancer IP: {{ lb_ip.stdout }}"
-      - "Ingress available at: http://{{ lb_ip.stdout }}"
+      - "Gateway available at: http://{{ lb_ip.stdout }}"
       - ""
-      - "To use TLS certificates, add these annotations to your Ingress:"
+      - "To use TLS certificates, annotate your Gateway resource with:"
       - "  cert-manager.io/cluster-issuer: letsencrypt-staging"
       - "  or"
       - "  cert-manager.io/cluster-issuer: letsencrypt-production"
