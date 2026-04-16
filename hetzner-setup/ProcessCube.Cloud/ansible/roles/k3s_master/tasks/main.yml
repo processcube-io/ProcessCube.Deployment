@@ -195,10 +195,19 @@
             listeners:
               web:
                 port: 8000
-                namespacePolicy: All
+                protocol: HTTP
+                allowedRoutes:
+                  namespaces:
+                    from: All
               websecure:
                 port: 8443
-                namespacePolicy: All
+                protocol: HTTPS
+                allowedRoutes:
+                  namespaces:
+                    from: All
+                tls:
+                  mode: Terminate
+                  certificateRefs: []
 
           rbac:
             enabled: true
