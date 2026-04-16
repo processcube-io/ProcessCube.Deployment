@@ -99,7 +99,7 @@
       --version 39.0.7 \
       --values /tmp/traefik-values.yaml \
       --wait \
-      --timeout 5m
+      --timeout 10m
   register: traefik_install
   changed_when: true
 
