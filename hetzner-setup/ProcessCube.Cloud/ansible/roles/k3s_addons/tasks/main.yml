@@ -67,9 +67,9 @@
     content: |
       deployment:
         kind: DaemonSet
+        dnsPolicy: ClusterFirstWithHostNet
 
       hostNetwork: true
-      dnsPolicy: ClusterFirstWithHostNet
 
       ports:
         web:
