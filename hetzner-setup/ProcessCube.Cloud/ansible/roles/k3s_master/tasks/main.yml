@@ -152,19 +152,6 @@
   delay: 10
   changed_when: false
 
-- name: Install Gateway API CRDs
-  shell: kubectl apply -f https://github.com/kubernetes-sigs/gateway-api/releases/download/v1.2.0/standard-install.yaml
-  register: gateway_api_install
-  changed_when: "'created' in gateway_api_install.stdout or 'configured' in gateway_api_install.stdout"
-
-- name: Wait for Gateway API CRDs to be established
-  shell: kubectl wait --for=condition=Established crd/gateways.gateway.networking.k8s.io --timeout=60s
-  register: gateway_crd_wait
-  until: gateway_crd_wait.rc == 0
-  retries: 12
-  delay: 5
-  changed_when: false
-
 - name: Configure Traefik with Gateway API support
   copy:
     dest: /var/lib/rancher/k3s/server/manifests/traefik-config.yaml
