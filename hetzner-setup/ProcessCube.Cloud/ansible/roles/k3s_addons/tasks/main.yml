@@ -145,12 +145,8 @@
           name: letsencrypt-staging-key
         solvers:
         - http01:
-            gatewayHTTPRoute:
-              parentRefs:
-              - name: traefik
-                namespace: kube-system
-                kind: Gateway
-                group: gateway.networking.k8s.io
+            ingress:
+              class: traefik
     EOF
   changed_when: true
 
@@ -169,12 +165,8 @@
           name: letsencrypt-production-key
         solvers:
         - http01:
-            gatewayHTTPRoute:
-              parentRefs:
-              - name: traefik
-                namespace: kube-system
-                kind: Gateway
-                group: gateway.networking.k8s.io
+            ingress:
+              class: traefik
     EOF
   changed_when: true
 
@@ -182,8 +174,7 @@
   debug:
     msg:
       - "Hetzner CSI Driver installed successfully"
-      - "Traefik v3 Gateway Controller installed successfully"
-      - "Gateway API CRDs (v1.2.0) installed successfully"
+      - "Traefik Ingress Controller installed successfully"
       - "LoadBalancer created automatically by CCM"
       - "cert-manager v1.20.2 installed successfully"
       - "Let's Encrypt ClusterIssuers configured:"
@@ -191,9 +182,8 @@
       - "  - letsencrypt-production (for production use)"
       - ""
       - "LoadBalancer IP: {{ lb_ip.stdout }}"
-      - "Gateway available at: http://{{ lb_ip.stdout }}"
       - ""
-      - "To use TLS certificates, annotate your Gateway resource with:"
+      - "To use TLS certificates, annotate your Ingress resource with:"
       - "  cert-manager.io/cluster-issuer: letsencrypt-staging"
       - "  or"
       - "  cert-manager.io/cluster-issuer: letsencrypt-production"

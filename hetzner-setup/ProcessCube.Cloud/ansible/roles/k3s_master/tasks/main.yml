@@ -152,7 +152,7 @@
   delay: 10
   changed_when: false
 
-- name: Configure Traefik with Gateway API support
+- name: Configure Traefik as Ingress Controller
   copy:
     dest: /var/lib/rancher/k3s/server/manifests/traefik-config.yaml
     mode: '0644'
@@ -179,36 +179,10 @@
             type: LoadBalancer
 
           providers:
-            kubernetesGateway:
-              enabled: true
             kubernetesIngress:
+              enabled: true
+            kubernetesGateway:
               enabled: false
-
-          gatewayClass:
-            enabled: true
-            name: traefik
-
-          gateway:
-            enabled: true
-            annotations:
-              cert-manager.io/cluster-issuer: letsencrypt-production
-            listeners:
-              web:
-                port: 8000
-                protocol: HTTP
-                allowedRoutes:
-                  namespaces:
-                    from: All
-              websecure:
-                port: 8443
-                protocol: HTTPS
-                allowedRoutes:
-                  namespaces:
-                    from: All
-                tls:
-                  mode: Terminate
-                  certificateRefs:
-                    - name: traefik-tls-secret
 
           rbac:
             enabled: true
