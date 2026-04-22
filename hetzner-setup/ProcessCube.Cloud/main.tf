@@ -212,7 +212,13 @@ resource "local_file" "ansible_inventory" {
 # Wait for servers to be ready
 resource "null_resource" "wait_for_servers" {
   provisioner "local-exec" {
-    command = "sleep 90"
+    command = <<-EOT
+      for ip in ${hcloud_server.k3s_master.ipv4_address} ${join(" ", hcloud_server.k3s_worker[*].ipv4_address)}; do
+        echo "Waiting for SSH on $ip..."
+        timeout 300 bash -c "until nc -z -w5 $ip 22 2>/dev/null; do sleep 5; done"
+        echo "SSH ready on $ip"
+      done
+    EOT
   }
 
   depends_on = [
