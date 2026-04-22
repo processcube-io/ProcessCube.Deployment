@@ -27,7 +27,7 @@ provider "hcloud" {
 # SSH Key for accessing the servers
 resource "hcloud_ssh_key" "k3s" {
   name       = "${var.cluster_name}-key"
-  public_key = file(var.ssh_public_key_path)
+  public_key = trimspace(file(var.ssh_public_key_path))
 }
 
 # Network for the cluster
