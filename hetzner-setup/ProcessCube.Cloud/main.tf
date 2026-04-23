@@ -215,7 +215,7 @@ resource "null_resource" "wait_for_servers" {
     command = <<-EOT
       for ip in ${hcloud_server.k3s_master.ipv4_address} ${join(" ", hcloud_server.k3s_worker[*].ipv4_address)}; do
         echo "Waiting for SSH on $ip..."
-        timeout 300 bash -c "until nc -z -w5 $ip 22 2>/dev/null; do sleep 5; done"
+        timeout 300 bash -c "until ssh-keyscan -T 10 -p 22 $ip 2>/dev/null | grep -q ssh; do sleep 5; done"
         echo "SSH ready on $ip"
       done
     EOT
