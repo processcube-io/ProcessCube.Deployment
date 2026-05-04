@@ -67,7 +67,7 @@
       --ignore-not-found
   changed_when: true
 
-- name: Annotate Traefik Service for Hetzner LoadBalancer
+- name: Ensure Traefik Service annotations are present (overwrite in case HelmChart reset them)
   shell: |
     kubectl annotate service traefik \
       -n kube-system \
@@ -75,7 +75,6 @@
       load-balancer.hetzner.cloud/use-private-ip="true" \
       load-balancer.hetzner.cloud/uses-proxyprotocol="false" \
       load-balancer.hetzner.cloud/name="{{ cluster_name }}-lb" \
-      load-balancer.hetzner.cloud/node-selector="loadbalancer-target=true" \
       load-balancer.hetzner.cloud/health-check-interval="10s" \
       load-balancer.hetzner.cloud/health-check-timeout="5s" \
       load-balancer.hetzner.cloud/health-check-retries="3" \
@@ -84,7 +83,7 @@
 
 - name: Wait a moment for LoadBalancer to start provisioning
   pause:
-    seconds: 15
+    seconds: 30
 
 - name: Wait for LoadBalancer to be provisioned
   shell: kubectl get svc traefik -n kube-system -o jsonpath='{.status.loadBalancer.ingress[0].ip}'
@@ -93,6 +92,36 @@
   retries: 60
   delay: 10
   changed_when: false
+  ignore_errors: true
+
+- name: Collect CCM logs on LoadBalancer provisioning failure
+  shell: kubectl logs -n kube-system -l app=hcloud-cloud-controller-manager --tail=100
+  register: ccm_logs_on_failure
+  changed_when: false
+  ignore_errors: true
+  when: lb_ip.stdout == ""
+
+- name: Show CCM logs on failure
+  debug:
+    msg: "{{ ccm_logs_on_failure.stdout_lines }}"
+  when: lb_ip.stdout == ""
+
+- name: Show Traefik service events on failure
+  shell: kubectl describe svc traefik -n kube-system
+  register: traefik_svc_describe
+  changed_when: false
+  ignore_errors: true
+  when: lb_ip.stdout == ""
+
+- name: Display Traefik service description on failure
+  debug:
+    msg: "{{ traefik_svc_describe.stdout_lines }}"
+  when: lb_ip.stdout == ""
+
+- name: Fail if LoadBalancer was not provisioned
+  fail:
+    msg: "LoadBalancer IP was not assigned after 10 minutes. See CCM logs and service events above for details."
+  when: lb_ip.stdout == ""
 
 - name: Display LoadBalancer IP
   debug:
