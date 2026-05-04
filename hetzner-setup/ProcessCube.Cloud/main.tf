@@ -31,6 +31,10 @@ resource "hcloud_ssh_key" "k3s" {
 }
 
 # Network for the cluster
+data "hcloud_location" "cluster" {
+  name = var.location
+}
+
 resource "hcloud_network" "k3s" {
   name     = "${var.cluster_name}-network"
   ip_range = "10.0.0.0/16"
@@ -39,7 +43,7 @@ resource "hcloud_network" "k3s" {
 resource "hcloud_network_subnet" "k3s" {
   network_id   = hcloud_network.k3s.id
   type         = "cloud"
-  network_zone = "eu-central"
+  network_zone = data.hcloud_location.cluster.network_zone
   ip_range     = "10.0.1.0/24"
 
   lifecycle {
