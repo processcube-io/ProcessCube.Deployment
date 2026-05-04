@@ -121,12 +121,13 @@
   become: yes
   tasks:
     - name: Wait for all nodes to be ready
-      shell: kubectl get nodes --no-headers | grep -v NotReady | wc -l
+      shell: kubectl get nodes --no-headers | awk '$2 == "Ready" {count++} END {print count+0}'
       register: ready_nodes
       until: ready_nodes.stdout|int == groups['k3s_cluster']|length
       retries: 30
       delay: 10
       changed_when: false
+      ignore_errors: true
 
     - name: Display cluster status
       shell: kubectl get nodes
@@ -136,3 +137,24 @@
     - name: Show cluster nodes
       debug:
         var: cluster_status.stdout_lines
+
+    - name: Describe NotReady nodes for diagnostics
+      shell: |
+        for node in $(kubectl get nodes --no-headers | awk '$2 != "Ready" {print $1}'); do
+          echo "=== Node: $node ==="
+          kubectl describe node "$node" | tail -30
+        done
+      register: notready_nodes_info
+      changed_when: false
+      ignore_errors: true
+      when: ready_nodes.stdout|int < groups['k3s_cluster']|length
+
+    - name: Show NotReady node details
+      debug:
+        msg: "{{ notready_nodes_info.stdout_lines }}"
+      when: ready_nodes.stdout|int < groups['k3s_cluster']|length
+
+    - name: Fail if not all nodes are ready
+      fail:
+        msg: "Only {{ ready_nodes.stdout }} of {{ groups['k3s_cluster']|length }} nodes are Ready. See node details above."
+      when: ready_nodes.stdout|int < groups['k3s_cluster']|length

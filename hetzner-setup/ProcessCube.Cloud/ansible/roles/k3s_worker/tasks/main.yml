@@ -103,6 +103,34 @@
     enabled: yes
     state: started
     daemon_reload: yes
+  register: agent_service_start
+  ignore_errors: true
+
+- name: Wait for K3s agent to become active
+  shell: systemctl is-active k3s-agent
+  register: agent_active
+  until: agent_active.stdout == "active"
+  retries: 18
+  delay: 10
+  changed_when: false
+  ignore_errors: true
+
+- name: Collect k3s-agent logs if not active
+  shell: journalctl -xeu k3s-agent --no-pager -n 50
+  register: agent_logs
+  changed_when: false
+  ignore_errors: true
+  when: agent_active.stdout != "active"
+
+- name: Show k3s-agent logs on failure
+  debug:
+    msg: "{{ agent_logs.stdout_lines }}"
+  when: agent_active.stdout != "active"
+
+- name: Fail if K3s agent is not active
+  fail:
+    msg: "K3s agent service failed to start. Check logs above."
+  when: agent_active.stdout != "active"
 
 - name: Display K3s worker installation info
   debug:
