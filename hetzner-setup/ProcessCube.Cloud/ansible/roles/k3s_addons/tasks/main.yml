@@ -186,7 +186,7 @@
         solvers:
         - http01:
             ingress:
-              class: traefik
+              ingressClassName: traefik
     EOF
   changed_when: true
 
@@ -206,7 +206,7 @@
         solvers:
         - http01:
             ingress:
-              class: traefik
+              ingressClassName: traefik
     EOF
   changed_when: true
 
