@@ -22,6 +22,10 @@
     dest: /tmp/hcloud-ccm.yaml
     mode: '0644'
 
+- name: Remove deprecated CCM ClusterRoleBinding (breaking change in v1.28.0)
+  shell: kubectl delete clusterrolebinding system:hcloud-cloud-controller-manager --ignore-not-found
+  changed_when: false
+
 - name: Install Hetzner Cloud Controller Manager
   shell: kubectl apply -f /tmp/hcloud-ccm.yaml
   register: ccm_install
