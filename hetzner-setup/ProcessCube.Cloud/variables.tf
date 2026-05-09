@@ -46,7 +46,7 @@ variable "hcloud_csi_version" {
 variable "hcloud_ccm_version" {
   description = "Hetzner Cloud Controller Manager version"
   type        = string
-  default     = "v1.20.0"
+  default     = "v1.31.0"
 }
 
 variable "ssh_public_key_path" {
