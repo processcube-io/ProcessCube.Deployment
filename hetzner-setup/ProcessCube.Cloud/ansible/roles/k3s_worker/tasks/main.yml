@@ -15,6 +15,12 @@
     sed -i '/ swap / s/^/#/' /etc/fstab
   changed_when: false
 
+- name: Disable multipathd to prevent interference with Hetzner CSI volumes
+  shell: |
+    systemctl stop multipathd.service multipathd.socket 2>/dev/null || true
+    systemctl disable multipathd.service multipathd.socket 2>/dev/null || true
+  changed_when: false
+
 - name: Configure firewall rules
   shell: |
     ufw allow 22/tcp
