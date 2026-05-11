@@ -72,9 +72,10 @@
     kubectl annotate service traefik \
       -n kube-system \
       load-balancer.hetzner.cloud/location="{{ location }}" \
+      load-balancer.hetzner.cloud/name="{{ cluster_name }}-lb" \
+      load-balancer.hetzner.cloud/network="{{ cluster_name }}-network" \
       load-balancer.hetzner.cloud/use-private-ip="true" \
       load-balancer.hetzner.cloud/uses-proxyprotocol="false" \
-      load-balancer.hetzner.cloud/name="{{ cluster_name }}-lb" \
       load-balancer.hetzner.cloud/health-check-interval="10s" \
       load-balancer.hetzner.cloud/health-check-timeout="5s" \
       load-balancer.hetzner.cloud/health-check-retries="3" \
