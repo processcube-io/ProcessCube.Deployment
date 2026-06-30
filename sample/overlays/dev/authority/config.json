@@ -25,17 +25,24 @@
             "redirect_uris": ["https://app.sample.dev.5minds.cloud"]
         },
         {
-          "clientId": "nodered",
-          "clientSecret": "79C29A79-607D-452B-B4CA-AF79BF0D44E9",
-          "scope": "openid email profile",
-          "grant_types": ["authorization_code", "refresh_token"],
-          "response_types": ["code"],
-          "redirect_uris": [
-            "https://nodered.sampleapp.dev.5minds.cloud/auth/strategy/callback",
-            "https://nodered.sampleapp.dev.5minds.cloud/auth/dashboard/callback"
-          ],
-          "post_logout_redirect_uris": ["https://nodered.sampleapp.dev.5minds.cloud"],
-          "corsOrigins": ["https://nodered.sampleapp.dev.5minds.cloud"]
+            "clientId": "LowCodeEditorClient",
+            "clientSecret": "79C29A79-607D-452B-B4CA-AF79BF0D44E9",
+            "scope": "openid email profile nodered lanes engine_read engine_write",
+            "grant_types": ["authorization_code", "refresh_token"],
+            "response_types": ["code"],
+            "redirect_uris": ["https://lowcode.sampleapp.dev.5minds.cloud/auth/strategy/callback"],
+            "post_logout_redirect_uris": ["https://lowcode.sampleapp.dev.5minds.cloud/"],
+            "corsOrigins": ["https://lowcode.sampleapp.dev.5minds.cloud"]
+        },
+        {
+            "clientId": "LowCodeDashboardClient",
+            "clientSecret": "05844EF2-08B9-473D-8FD1-9A96289F5304",
+            "scope": "openid email profile lanes engine_read engine_write engine_admin",
+            "grant_types": ["authorization_code", "refresh_token"],
+            "response_types": ["code"],
+            "redirect_uris": ["https://lowcode.sampleapp.dev.5minds.cloud/auth/dashboard/callback"],
+            "post_logout_redirect_uris": ["https://lowcode.sampleapp.dev.5minds.cloud/dashboard"],
+            "corsOrigins": ["https://lowcode.sampleapp.dev.5minds.cloud"]
         }
     ],
     "database": {

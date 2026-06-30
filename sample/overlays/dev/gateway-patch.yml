@@ -1,0 +1,9 @@
+- op: replace
+  path: /spec/listeners/1/hostname
+  value: engine.sampleapp.dev.5minds.cloud
+- op: replace
+  path: /spec/listeners/2/hostname
+  value: authority.sampleapp.dev.5minds.cloud
+- op: replace
+  path: /spec/listeners/3/hostname
+  value: lowcode.sampleapp.dev.5minds.cloud

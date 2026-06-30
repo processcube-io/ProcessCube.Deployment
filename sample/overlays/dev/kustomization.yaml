@@ -8,30 +8,35 @@ resources:
 
 patches:
   - target:
-      group: networking.k8s.io
-      kind: Ingress
+      group: gateway.networking.k8s.io
+      kind: Gateway
+      name: processcube-gateway
+    path: ./gateway-patch.yml
+  - target:
+      group: gateway.networking.k8s.io
+      kind: HTTPRoute
       name: engine
-    path: ./engine/ingress-patch.yml
+    path: ./engine/httproute-patch.yml
   - target:
       group: apps
       kind: Deployment
       name: engine
     path: ./engine/deployment-patch.yml
   - target:
-      group: networking.k8s.io
-      kind: Ingress
+      group: gateway.networking.k8s.io
+      kind: HTTPRoute
       name: authority
-    path: ./authority/ingress-patch.yml
+    path: ./authority/httproute-patch.yml
   - target:
       group: apps
       kind: Deployment
       name: nodered
     path: ./lowcode/deployment-patch.yml
   - target:
-      group: networking.k8s.io
-      kind: Ingress
+      group: gateway.networking.k8s.io
+      kind: HTTPRoute
       name: nodered
-    path: ./lowcode/ingress-patch.yml
+    path: ./lowcode/httproute-patch.yml
 
 
 configMapGenerator:

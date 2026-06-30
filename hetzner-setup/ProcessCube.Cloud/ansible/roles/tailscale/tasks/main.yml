@@ -1,0 +1,54 @@
+---
+- name: Install required packages for Tailscale
+  apt:
+    name:
+      - curl
+      - gnupg
+    state: present
+    update_cache: yes
+
+- name: Add Tailscale GPG key
+  shell: |
+    curl -fsSL https://pkgs.tailscale.com/stable/ubuntu/noble.noarmor.gpg | tee /usr/share/keyrings/tailscale-archive-keyring.gpg >/dev/null
+  args:
+    creates: /usr/share/keyrings/tailscale-archive-keyring.gpg
+
+- name: Add Tailscale repository
+  shell: |
+    echo "deb [signed-by=/usr/share/keyrings/tailscale-archive-keyring.gpg] https://pkgs.tailscale.com/stable/ubuntu noble main" | tee /etc/apt/sources.list.d/tailscale.list
+  args:
+    creates: /etc/apt/sources.list.d/tailscale.list
+
+- name: Update apt cache
+  apt:
+    update_cache: yes
+
+- name: Install Tailscale
+  apt:
+    name: tailscale
+    state: present
+
+- name: Check if Tailscale is already authenticated
+  shell: tailscale status --json | grep -q '"BackendState":"Running"'
+  register: tailscale_status
+  changed_when: false
+  failed_when: false
+
+- name: Authenticate Tailscale
+  shell: |
+    {% if tailscale_tags is defined and tailscale_tags != "" %}
+    tailscale up --authkey={{ tailscale_auth_key }} --accept-routes --advertise-tags={{ tailscale_tags }}
+    {% else %}
+    tailscale up --authkey={{ tailscale_auth_key }} --accept-routes
+    {% endif %}
+  when: tailscale_status.rc != 0
+  register: tailscale_auth
+
+- name: Display Tailscale status
+  shell: tailscale status
+  register: tailscale_info
+  changed_when: false
+
+- name: Show Tailscale connection info
+  debug:
+    msg: "{{ tailscale_info.stdout_lines }}"

@@ -7,14 +7,24 @@
   path: "/spec/template/spec/containers/0/env/-" #resource we want to change
   value: 
     name: NODERED_BASE_URL
-    value: "https://nodered.sampleapp.dev.5minds.cloud" 
+    value: "https://lowcode.sampleapp.dev.5minds.cloud" 
 - op: add #action
   path: "/spec/template/spec/containers/0/env/-" #resource we want to change
   value: 
     name: NODERED_CLIENT_ID
-    value: "nodered" 
+    value: "LowCodeEditorClient" 
 - op: add #action
   path: "/spec/template/spec/containers/0/env/-" #resource we want to change
   value: 
     name: NODERED_CLIENT_SECRET
     value: "79C29A79-607D-452B-B4CA-AF79BF0D44E9"
+- op: add #action
+  path: "/spec/template/spec/containers/0/env/-" #resource we want to change
+  value: 
+    name: NODERED_DASHBOARD_CLIENT_ID
+    value: "LowCodeDashboardClient"
+- op: add #action
+  path: "/spec/template/spec/containers/0/env/-" #resource we want to change
+  value: 
+    name: NODERED_DASHBOARD_CLIENT_SECRET
+    value: "05844EF2-08B9-473D-8FD1-9A96289F5304"
