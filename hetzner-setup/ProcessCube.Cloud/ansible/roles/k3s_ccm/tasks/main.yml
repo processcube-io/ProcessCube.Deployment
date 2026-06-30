@@ -22,6 +22,12 @@
     dest: /tmp/hcloud-ccm.yaml
     mode: '0644'
 
+- name: Align CCM cluster CIDR with K3s default (10.42.0.0/16)
+  replace:
+    path: /tmp/hcloud-ccm.yaml
+    regexp: '10\.244\.0\.0/16'
+    replace: '10.42.0.0/16'
+
 - name: Remove deprecated CCM ClusterRoleBinding (breaking change in v1.28.0)
   shell: kubectl delete clusterrolebinding system:hcloud-cloud-controller-manager --ignore-not-found
   changed_when: false

@@ -33,11 +33,41 @@
     ufw default deny incoming
     ufw --force enable
 
-- name: Wait for master node to be ready
+- name: Ensure private network interface has an IP in the cluster subnet
+  shell: |
+    for i in $(seq 1 30); do
+      if ip -4 addr show enp7s0 2>/dev/null | grep -qoP '(?<=inet\s)10\.0\.'; then
+        exit 0
+      fi
+      ip link set enp7s0 up 2>/dev/null || true
+      dhclient -1 enp7s0 2>/dev/null || true
+      sleep 5
+    done
+    echo "enp7s0 never received a 10.0.x.x address" >&2
+    exit 1
+  register: private_iface_up
+  changed_when: false
+
+- name: Show private interface state on failure
+  shell: ip -4 addr show enp7s0; echo '--- routes ---'; ip route
+  register: iface_debug
+  changed_when: false
+  when: private_iface_up.rc != 0
+
+- name: Display private interface diagnostics
+  debug:
+    msg: "{{ iface_debug.stdout_lines }}"
+  when: private_iface_up.rc != 0
+
+- name: Wait for master node API to be reachable over the private network
   wait_for:
     host: "{{ master_ip }}"
     port: 6443
-    timeout: 300
+    timeout: 120
+    msg: >-
+      Cannot reach the master API at {{ master_ip }}:6443 over the private network.
+      Check that enp7s0 has a 10.0.x.x address (see diagnostics above) and that the
+      master's firewall allows traffic from 10.0.0.0/16.
 
 - name: Check if K3s is already installed
   stat:
