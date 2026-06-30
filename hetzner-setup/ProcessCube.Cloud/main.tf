@@ -228,6 +228,13 @@ resource "null_resource" "wait_for_servers" {
   depends_on = [
     local_file.ansible_inventory
   ]
+
+  # Re-run the SSH readiness check whenever a node is (re)created, so a freshly
+  # provisioned server is reachable before Ansible runs against it.
+  triggers = {
+    master_id  = hcloud_server.k3s_master.id
+    worker_ids = join(",", hcloud_server.k3s_worker[*].id)
+  }
 }
 
 # Run Ansible playbook
